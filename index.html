@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marketing Planner 2026 - Cloud Sync</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 1px;
+            background-color: #e2e8f0;
+            border: 1px solid #e2e8f0;
+        }
+
+        .calendar-day {
+            min-height: 120px;
+            background-color: white;
+            padding: 4px;
+            transition: background-color 0.2s;
+        }
+
+        .calendar-day:hover {
+            background-color: #f8fafc;
+        }
+
+        .event-tag {
+            font-size: 0.62rem;
+            padding: 2px 4px;
+            border-radius: 4px;
+            margin: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-weight: 700;
+            transition: all 0.15s ease;
+            cursor: pointer;
+            border-left-width: 3px;
+            line-height: 1.2;
+            text-transform: uppercase;
+        }
+
+        .event-tag.completed {
+            opacity: 0.4;
+            text-decoration: line-through;
+            background-color: #f1f5f9 !important;
+            color: #94a3b8 !important;
+            border-left-color: #cbd5e1 !important;
+            box-shadow: none !important;
+        }
+
+        .campaign-indicator {
+            box-shadow: 0 0 0 2px var(--campaign-color, #ccc);
+            z-index: 1;
+        }
+
+        .progress-container {
+            width: 100%;
+            height: 6px;
+            background-color: #f1f5f9;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background-color: #22c55e;
+            transition: width 0.5s ease-in-out;
+        }
+
+        .filter-tag {
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid #e2e8f0;
+        }
+
+        .filter-tag.active {
+            background-color: #6366f1;
+            color: white;
+            border-color: #4f46e5;
+            box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.2);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.4);
+            z-index: 50;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal.active { display: flex; }
+
+        .check-btn {
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            border: 1px solid currentColor;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 4px;
+            flex-shrink: 0;
+        }
+
+        .completed .check-btn {
+            background-color: #94a3b8;
+            border-color: #94a3b8;
+            color: white;
+        }
+
+        .overflow-y-auto::-webkit-scrollbar { width: 3px; }
+        .overflow-y-auto::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+
+        .tab-btn.active {
+            border-bottom: 2px solid #6366f1;
+            color: #6366f1;
+        }
+
+        .icon-option {
+            cursor: pointer;
+            padding: 10px;
+            border-radius: 12px;
+            border: 2px solid #f1f5f9;
+            transition: all 0.2s;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .icon-option:hover {
+            background-color: #f8fafc;
+            border-color: #e2e8f0;
+        }
+        .icon-option.selected {
+            border-color: #6366f1;
+            background-color: #eff6ff;
+            color: #6366f1;
+            transform: scale(1.05);
+        }
+
+        .advanced-filter-select, .dash-filter-input {
+            background-color: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 4px 8px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            outline: none;
+            cursor: pointer;
+            color: #64748b;
+        }
+
+        .view-section { display: none; }
+        .view-section.active { display: block; }
+
+        .dashboard-card {
+            background: white;
+            border-radius: 24px;
+            padding: 24px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+
+        #loadingOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Loader de Sincronização -->
+<div id="loadingOverlay">
+    <div class="bg-indigo-600 p-4 rounded-3xl text-white animate-bounce mb-4">
+        <i class="fas fa-rocket fa-2x"></i>
+    </div>
+    <p class="text-xs font-black uppercase tracking-widest text-slate-400">Acedendo à Nuvem...</p>
+</div>
+
+<div class="min-h-screen flex flex-col">
+    <!-- Cabeçalho Otimizado -->
+    <header class="bg-white border-b px-6 py-3 flex flex-row flex-wrap items-center justify-between gap-4 shadow-sm z-10">
+        <!-- Logo e Título -->
+        <div class="flex items-center gap-3 shrink-0">
+            <div class="bg-indigo-600 p-2.5 rounded-xl text-white shadow-lg">
+                <i class="fas fa-rocket text-sm"></i>
+            </div>
+            <div class="hidden sm:block">
+                <h1 class="text-lg font-black text-slate-800 uppercase tracking-tighter leading-none">Marketing <span class="text-indigo-600">Planner</span></h1>
+                <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Gestão Estratégica 2026</p>
+            </div>
+        </div>
+
+        <div class="flex flex-row items-center gap-2 sm:gap-4 ml-auto">
+            <!-- Alternador de Visão -->
+            <div class="flex bg-slate-100 p-1 rounded-xl shadow-inner whitespace-nowrap">
+                <button onclick="switchView('calendar')" id="btnViewCalendar" class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition active bg-white text-indigo-600 shadow-sm">
+                    <i class="fas fa-calendar-alt mr-1"></i> <span class="hidden md:inline">Calendário</span>
+                </button>
+                <button onclick="switchView('dashboard')" id="btnViewDashboard" class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition text-slate-500 hover:text-slate-700">
+                    <i class="fas fa-chart-pie mr-1"></i> <span class="hidden md:inline">Dashboard</span>
+                </button>
+            </div>
+
+            <!-- Marcador de Mês -->
+            <div class="flex items-center bg-slate-100 p-1 rounded-xl whitespace-nowrap">
+                <button onclick="changeMonth(-1)" class="p-1.5 hover:bg-white rounded-lg transition text-slate-500"><i class="fas fa-chevron-left text-[10px]"></i></button>
+                <span id="currentMonthYear" class="px-2 py-1 font-bold text-slate-700 min-w-[110px] text-center text-[10px] sm:text-xs uppercase tracking-widest">Janeiro 2026</span>
+                <button onclick="changeMonth(1)" class="p-1.5 hover:bg-white rounded-lg transition text-slate-500"><i class="fas fa-chevron-right text-[10px]"></i></button>
+            </div>
+
+            <!-- Botões de Ação -->
+            <div class="flex flex-row items-center gap-1.5">
+                <button onclick="openConfigModal()" class="bg-slate-100 text-slate-600 p-2 rounded-xl hover:bg-slate-200 transition" title="Configurações">
+                    <i class="fas fa-cog text-xs"></i>
+                </button>
+                <button onclick="openCampaignModal()" class="bg-slate-800 text-white px-3 py-2 rounded-xl font-bold text-[9px] uppercase transition hover:bg-black whitespace-nowrap">
+                    <i class="fas fa-bullseye sm:mr-1"></i> <span class="hidden sm:inline">Estratégias</span>
+                </button>
+                <button onclick="openModal()" class="bg-indigo-600 text-white px-3 py-2 rounded-xl font-bold text-[9px] uppercase transition hover:bg-indigo-700 shadow-md whitespace-nowrap">
+                    <i class="fas fa-plus sm:mr-1"></i> <span class="hidden sm:inline">Novo Post</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ÁREA DO CALENDÁRIO -->
+    <main id="calendarView" class="view-section active flex-1 p-4 overflow-auto">
+        <div class="max-w-[1600px] mx-auto">
+            <div class="mb-4 flex items-center gap-2 bg-white border p-2 rounded-xl overflow-x-auto no-scrollbar shadow-sm">
+                <i class="fas fa-filter text-slate-300 ml-2"></i>
+                <div id="filterTagsContainer" class="flex gap-1"></div>
+            </div>
+
+            <div class="mb-4 flex flex-wrap gap-3 items-center justify-center bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                <div class="flex items-center gap-2">
+                    <select id="advFilterPlatform" onchange="updateUI()" class="advanced-filter-select"><option value="all">Plataformas</option></select>
+                    <select id="advFilterFormat" onchange="updateUI()" class="advanced-filter-select"><option value="all">Formatos</option></select>
+                    <select id="advFilterObjective" onchange="updateUI()" class="advanced-filter-select"><option value="all">Objetivos</option></select>
+                    <button onclick="resetAdvancedFilters()" class="text-[9px] font-black text-indigo-500 uppercase px-2 transition">Limpar</button>
+                </div>
+                <div class="h-4 w-px bg-slate-200 mx-2 hidden md:block"></div>
+                <div id="dynamicLegend" class="flex flex-wrap gap-x-4 gap-y-2 items-center text-[10px] font-black text-slate-500 uppercase font-bold"></div>
+            </div>
+
+            <div id="campaignStatusRow" class="mb-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 hidden"></div>
+
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="grid grid-cols-7 bg-slate-50 border-b">
+                    <div class="py-3 text-center text-[11px] font-black text-slate-400 uppercase font-bold">Dom</div>
+                    <div class="py-3 text-center text-[11px] font-black text-slate-400 uppercase font-bold">Seg</div>
+                    <div class="py-3 text-center text-[11px] font-black text-slate-400 uppercase font-bold">Ter</div>
+                    <div class="py-3 text-center text-[11px] font-black text-slate-400 uppercase font-bold">Qua</div>
+                    <div class="py-3 text-center text-[11px] font-black text-slate-400 uppercase font-bold">Qui</div>
+                    <div class="py-3 text-center text-[11px] font-black text-slate-400 uppercase font-bold">Sex</div>
+                    <div class="py-3 text-center text-[11px] font-black text-slate-400 uppercase font-bold">Sáb</div>
+                </div>
+                <div id="calendarBody" class="calendar-grid"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- ÁREA DO DASHBOARD -->
+    <main id="dashboardView" class="view-section flex-1 p-6 overflow-auto bg-slate-50/50">
+        <div class="max-w-[1600px] mx-auto text-left">
+            <div class="mb-8 flex flex-wrap items-center justify-between bg-white p-4 rounded-3xl border border-slate-200 shadow-sm gap-4">
+                <div class="flex items-center gap-4">
+                    <div class="bg-indigo-50 p-2 rounded-xl text-indigo-600"><i class="fas fa-chart-line"></i></div>
+                    <div>
+                        <h2 class="text-sm font-black text-slate-800 uppercase tracking-tight">Status do Time</h2>
+                        <p id="currentUserDisplay" class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Acedendo...</p>
+                    </div>
+                </div>
+                <div class="flex flex-wrap items-center gap-3">
+                    <div class="flex flex-col">
+                        <label class="text-[8px] font-black text-slate-400 uppercase ml-1 mb-1">Início</label>
+                        <input type="date" id="dashStartDate" onchange="updateDashboard()" class="dash-filter-input">
+                    </div>
+                    <div class="flex flex-col">
+                        <label class="text-[8px] font-black text-slate-400 uppercase ml-1 mb-1">Fim</label>
+                        <input type="date" id="dashEndDate" onchange="updateDashboard()" class="dash-filter-input">
+                    </div>
+                    <button onclick="resetDashPeriod()" class="mt-4 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase transition">Limpar</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="dashboard-card border-l-8 border-indigo-500">
+                    <p class="text-[10px] font-black text-slate-400 uppercase mb-1 font-bold">Campanhas</p>
+                    <h3 id="statTotalCampaigns" class="text-3xl font-black text-slate-800">0</h3>
+                </div>
+                <div class="dashboard-card border-l-8 border-emerald-500">
+                    <p class="text-[10px] font-black text-slate-400 uppercase mb-1 font-bold">Concluídas</p>
+                    <h3 id="statCompletedTasks" class="text-3xl font-black text-slate-800">0</h3>
+                    <p id="statCompletionRate" class="text-[10px] font-bold text-emerald-600 mt-1">0% taxa</p>
+                </div>
+                <div class="dashboard-card border-l-8 border-amber-500">
+                    <p class="text-[10px] font-black text-slate-400 uppercase mb-1 font-bold">No Prazo</p>
+                    <h3 id="statOnTimeRate" class="text-3xl font-black text-slate-800">0%</h3>
+                    <p id="statAverageDelay" class="text-[10px] font-bold text-amber-600 mt-1">0 dias atraso</p>
+                </div>
+                <div class="dashboard-card border-l-8 border-pink-500">
+                    <p class="text-[10px] font-black text-slate-400 uppercase mb-1 font-bold">Próxima</p>
+                    <h3 id="statNextTask" class="text-sm font-black text-slate-800 truncate">---</h3>
+                    <p id="statNextDate" class="text-[10px] font-bold text-slate-400 mt-1 uppercase font-bold">---</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="dashboard-card h-[400px] flex flex-col">
+                    <h3 class="text-xs font-black text-slate-800 uppercase mb-6 tracking-widest text-center font-bold">Plataformas</h3>
+                    <div class="flex-1 min-h-0"><canvas id="chartPlatforms"></canvas></div>
+                </div>
+                <div class="dashboard-card h-[400px] flex flex-col">
+                    <h3 class="text-xs font-black text-slate-800 uppercase mb-6 tracking-widest text-center font-bold">Objetivos</h3>
+                    <div class="flex-1 min-h-0"><canvas id="chartObjectives"></canvas></div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Modais Reintroduzidos -->
+<div id="configModal" class="modal">
+    <div class="bg-white rounded-3xl w-full max-w-2xl p-6 shadow-2xl m-4 flex flex-col max-h-[90vh]">
+        <div class="flex justify-between items-center mb-6 text-left">
+            <h2 class="text-xl font-black text-slate-800 uppercase tracking-tighter font-bold">Configurações</h2>
+            <button onclick="closeConfigModal()" class="text-slate-400 hover:text-slate-600 transition"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="flex border-b mb-4">
+            <button onclick="switchConfigTab('platforms')" id="tab-platforms" class="tab-btn active px-4 py-2 font-bold text-xs uppercase transition font-bold">Plataformas</button>
+            <button onclick="switchConfigTab('formats')" id="tab-formats" class="tab-btn px-4 py-2 font-bold text-xs uppercase transition font-bold">Formatos</button>
+            <button onclick="switchConfigTab('objectives')" id="tab-objectives" class="tab-btn px-4 py-2 font-bold text-xs uppercase transition font-bold">Objetivos</button>
+        </div>
+        <div id="config-platforms" class="flex-1 overflow-y-auto pr-2 text-left">
+            <form id="platformForm" class="bg-slate-50 p-5 rounded-2xl border border-slate-100 mb-6 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input type="text" id="pltName" required class="w-full border p-2.5 rounded-xl text-sm outline-none font-bold" placeholder="Nome">
+                    <input type="color" id="pltColor" class="w-full h-10 border p-1 rounded-xl cursor-pointer" value="#6366f1">
+                </div>
+                <div id="iconPickerGrid" class="grid grid-cols-6 sm:grid-cols-8 gap-2 max-h-40 overflow-y-auto p-2 bg-white rounded-xl border border-slate-100"></div>
+                <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-xs uppercase shadow-md transition hover:bg-indigo-700">Add Plataforma</button>
+            </form>
+            <div id="platformList" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
+        </div>
+        <div id="config-formats" class="hidden flex-1 overflow-y-auto pr-2 text-left">
+            <form id="formatForm" class="flex gap-2 mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <input type="text" id="fmtName" required class="flex-1 border p-2 rounded-xl text-sm outline-none font-bold" placeholder="Ex: E-book">
+                <button type="submit" class="bg-indigo-600 text-white px-6 rounded-xl font-bold text-xs uppercase shadow-md transition hover:bg-indigo-700">Add</button>
+            </form>
+            <div id="formatList" class="flex flex-wrap gap-2"></div>
+        </div>
+        <div id="config-objectives" class="hidden flex-1 overflow-y-auto pr-2 text-left">
+            <form id="objectiveForm" class="grid grid-cols-4 gap-2 mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <input type="text" id="objIcon" required class="col-span-1 border p-2 rounded-xl text-sm outline-none text-center" placeholder="❤️">
+                <input type="text" id="objName" required class="col-span-2 border p-2 rounded-xl text-sm outline-none font-bold" placeholder="Nome">
+                <button type="submit" class="col-span-1 bg-indigo-600 text-white rounded-xl font-bold text-xs uppercase shadow-md transition hover:bg-indigo-700">Add</button>
+            </form>
+            <div id="objectiveList" class="space-y-2"></div>
+        </div>
+    </div>
+</div>
+
+<div id="campaignModal" class="modal">
+    <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl m-4 flex flex-col max-h-[90vh]">
+        <div class="flex justify-between items-center mb-4 text-left">
+            <h2 id="campaignModalTitle" class="text-xl font-black text-slate-800 uppercase tracking-tighter font-bold">Gerir Estratégias</h2>
+            <button onclick="closeCampaignModal()" class="text-slate-400 hover:text-slate-600 transition"><i class="fas fa-times"></i></button>
+        </div>
+        <form id="campaignForm" class="space-y-3 border-b pb-6 mb-6 text-left">
+            <input type="hidden" id="editingCampaignId">
+            <input type="text" id="campName" required class="w-full border p-2.5 rounded-xl text-sm outline-none font-bold" placeholder="Nome da Campanha">
+            <div class="grid grid-cols-2 gap-3">
+                <input type="text" id="campGoal" class="w-full border p-2.5 rounded-xl text-sm outline-none font-bold" placeholder="Meta">
+                <input type="color" id="campColor" class="w-full h-9 border p-1 rounded-xl cursor-pointer" value="#6366f1">
+            </div>
+            <textarea id="campObs" rows="2" class="w-full border p-2 rounded-xl text-xs outline-none font-bold" placeholder="Briefing..."></textarea>
+            <div class="flex gap-2">
+                <button type="button" id="cancelEditCampBtn" onclick="resetCampaignForm()" class="hidden flex-1 py-2 font-bold text-xs text-slate-500 uppercase transition hover:bg-slate-50">Cancelar</button>
+                <button type="submit" id="submitCampBtn" class="flex-1 bg-indigo-600 text-white py-2 rounded-xl font-bold text-xs uppercase transition hover:bg-indigo-700">Salvar</button>
+            </div>
+        </form>
+        <div class="flex-1 overflow-y-auto pr-2 space-y-6 text-left">
+            <div><h3 class="text-[10px] font-black text-indigo-500 uppercase mb-3 font-bold">Ativas</h3><div id="campaignList" class="space-y-2"></div></div>
+            <div><h3 class="text-[10px] font-black text-slate-400 uppercase mb-3 font-bold">Concluídas</h3><div id="campaignCompletedList" class="space-y-2 opacity-70"></div></div>
+        </div>
+    </div>
+</div>
+
+<div id="eventModal" class="modal">
+    <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl m-4 overflow-y-auto max-h-[95vh] text-left">
+        <div class="flex justify-between items-center mb-4">
+            <h2 id="modalTitle" class="text-lg font-black text-slate-800 uppercase tracking-tighter font-bold">Agendar Postagem</h2>
+            <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 transition"><i class="fas fa-times"></i></button>
+        </div>
+        <form id="eventForm" class="space-y-3">
+            <input type="hidden" id="editingId">
+            <select id="actionCampaignId" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold bg-slate-50 text-indigo-600 outline-none"></select>
+            <div class="grid grid-cols-2 gap-3">
+                <select id="actionObjective" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold outline-none"></select>
+                <select id="actionChannel" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold outline-none"></select>
+            </div>
+            <input type="text" id="actionTitle" required class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none font-bold" placeholder="Título...">
+            <div class="grid grid-cols-2 gap-3">
+                <input type="date" id="actionDate" required class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none font-bold">
+                <select id="actionFormat" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-bold outline-none"></select>
+            </div>
+            <input type="text" id="actionParticipants" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none font-bold" placeholder="Participantes">
+            <textarea id="actionDescription" rows="2" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none font-bold" placeholder="Notas..."></textarea>
+            <div class="pt-2 flex gap-2">
+                <button type="button" onclick="closeModal()" class="flex-1 py-3 font-bold text-xs text-slate-500 uppercase transition hover:bg-slate-50">Cancelar</button>
+                <button type="submit" class="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-bold text-xs shadow-lg transition hover:bg-indigo-700 uppercase">Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="detailsModal" class="modal">
+    <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl m-4 text-left">
+        <div class="flex justify-between items-start mb-4">
+            <div id="detailsIcon" class="p-3 rounded-2xl text-white shadow-md"></div>
+            <div class="flex gap-2">
+                <button id="detailsEditBtn" class="text-slate-300 hover:text-indigo-600 transition p-1"><i class="fas fa-pen"></i></button>
+                <button onclick="closeDetails()" class="text-slate-400 hover:text-slate-600 transition p-1"><i class="fas fa-times fa-lg"></i></button>
+            </div>
+        </div>
+        <div class="space-y-4">
+            <div class="flex flex-wrap gap-2 mb-2">
+                <span id="detailsCampaignBadge" class="px-2 py-0.5 rounded text-[9px] font-black uppercase text-white font-bold"></span>
+                <span id="detailsFormatBadge" class="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-slate-100 text-slate-500 font-bold"></span>
+                <span id="detailsObjectiveBadge" class="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-slate-100 font-bold"></span>
+            </div>
+            <h2 id="detailsTitle" class="text-xl font-black text-slate-800 uppercase tracking-tighter leading-tight font-bold"></h2>
+            <p id="detailsDate" class="text-[10px] font-bold text-slate-400 uppercase mt-1"></p>
+            <div id="detailsParticipantsContainer" class="hidden">
+                <h3 class="text-[9px] font-black text-slate-400 uppercase mb-1 font-bold">Participantes:</h3>
+                <div class="flex items-center gap-2 text-sm font-bold text-slate-700"><i class="fas fa-users text-slate-300"></i><span id="detailsParticipants"></span></div>
+            </div>
+            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 italic font-medium"><p id="detailsDescription" class="text-xs text-slate-600 leading-relaxed"></p></div>
+            <button id="detailsCompleteBtn" class="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold text-xs uppercase shadow-md transition hover:bg-indigo-700">Concluir</button>
+        </div>
+    </div>
+</div>
+
+<div id="deleteConfirmModal" class="modal" style="z-index: 70;">
+    <div class="bg-white rounded-3xl w-full max-w-xs p-6 shadow-2xl m-4 text-center">
+        <h3 class="text-lg font-black text-slate-800 uppercase mb-2 font-bold">Excluir?</h3>
+        <div class="flex gap-2 mt-6"><button onclick="closeDeleteConfirm()" class="flex-1 py-3 bg-slate-100 rounded-xl font-bold text-xs uppercase transition hover:bg-slate-200">Não</button><button id="btnConfirmDelete" class="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold text-xs uppercase transition hover:bg-red-700">Sim</button></div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+    import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+    import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc, query } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
+    const firebaseConfig = JSON.parse(__firebase_config);
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'marketing-planner-2026';
+
+    // Globais para compatibilidade com HTML legada
+    window.marketingActions = [];
+    window.campaigns = [];
+    window.platforms = [];
+    window.formats = [];
+    window.objectives = [];
+    window.currentUser = null;
+
+    window.currentDate = new Date(2026, 0, 1);
+    window.activeFilters = ['all'];
+    window.currentView = 'calendar';
+    window.selectedPlatformIcon = 'fab fa-instagram';
+    window.idToDelete = null;
+    window.deleteType = null;
+    window.chartPltInstance = null;
+    window.chartObjInstance = null;
+
+    const iconLibrary = [
+        'fab fa-instagram', 'fab fa-tiktok', 'fab fa-whatsapp', 'fab fa-youtube', 'fab fa-facebook-f', 
+        'fab fa-twitter', 'fab fa-linkedin-in', 'fab fa-telegram-plane', 'fab fa-pinterest-p',
+        'fas fa-store', 'fas fa-shopping-cart', 'fas fa-ad', 'fas fa-rocket', 'fas fa-video', 
+        'fas fa-image', 'fas fa-link', 'fas fa-envelope', 'fas fa-phone', 'fas fa-bullhorn', 
+        'fas fa-users', 'fas fa-calendar-star', 'fas fa-camera', 'fas fa-podcast', 'fas fa-globe'
+    ];
+
+    const initAuth = async () => {
+        try {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+        } catch (error) { 
+            console.error("Erro Auth:", error);
+            // Fallback: remover overlay se falhar totalmente
+            setTimeout(() => document.getElementById('loadingOverlay').style.display = 'none', 3000);
+        }
+    };
+
+    const startSync = () => {
+        if (!auth.currentUser) return;
+        
+        // Timeout de segurança para remover o overlay mesmo se a nuvem estiver vazia
+        setTimeout(() => {
+            if (document.getElementById('loadingOverlay').style.display !== 'none') {
+                document.getElementById('loadingOverlay').style.display = 'none';
+            }
+        }, 3000);
+
+        onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'marketingActions'), s => {
+            window.marketingActions = s.docs.map(d => ({ id: d.id, ...d.data() }));
+            window.updateUI();
+            document.getElementById('loadingOverlay').style.display = 'none';
+        }, err => console.error(err));
+
+        onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'campaigns'), s => { 
+            window.campaigns = s.docs.map(d => ({ id: d.id, ...d.data() })); 
+            window.updateUI(); 
+        });
+
+        onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'platforms'), s => { 
+            window.platforms = s.docs.map(d => ({ id: d.id, ...d.data() })); 
+            if (window.platforms.length === 0) seedInitialData();
+            window.updateUI(); 
+        });
+
+        onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'formats'), s => { 
+            window.formats = s.docs.map(d => ({ id: d.id, ...d.data() })); 
+            window.updateUI(); 
+        });
+
+        onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'objectives'), s => { 
+            window.objectives = s.docs.map(d => ({ id: d.id, ...d.data() })); 
+            window.updateUI(); 
+        });
+    };
+
+    async function seedInitialData() {
+        const pCol = collection(db, 'artifacts', appId, 'public', 'data', 'platforms');
+        const fCol = collection(db, 'artifacts', appId, 'public', 'data', 'formats');
+        const oCol = collection(db, 'artifacts', appId, 'public', 'data', 'objectives');
+
+        const initialPlts = [
+            { name: 'Instagram', color: '#ec4899', icon: 'fab fa-instagram' },
+            { name: 'TikTok', color: '#18181b', icon: 'fab fa-tiktok' }
+        ];
+        initialPlts.forEach(p => addDoc(pCol, p));
+        ['REELS', 'FEED', 'STORY', 'VIDEO'].forEach(f => addDoc(fCol, { name: f }));
+        [{ name: 'Engajamento', icon: '❤️' }, { name: 'Venda', icon: '💰' }].forEach(o => addDoc(oCol, o));
+    }
+
+    // --- FUNÇÕES DE INTERAÇÃO (Bota as globais no Window) ---
+    window.switchView = (view) => {
+        window.currentView = view;
+        document.getElementById('calendarView').classList.toggle('active', view === 'calendar');
+        document.getElementById('dashboardView').classList.toggle('active', view === 'dashboard');
+        
+        const calendarBtn = document.getElementById('btnViewCalendar');
+        const dashBtn = document.getElementById('btnViewDashboard');
+        
+        if (view === 'calendar') {
+            calendarBtn.className = 'px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition active bg-white text-indigo-600 shadow-sm';
+            dashBtn.className = 'px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition text-slate-500 hover:text-slate-700';
+        } else {
+            dashBtn.className = 'px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition active bg-white text-indigo-600 shadow-sm';
+            calendarBtn.className = 'px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition text-slate-500 hover:text-slate-700';
+            window.updateDashboard();
+        }
+    };
+
+    window.toggleFilter = (id) => {
+        if (id === 'all') window.activeFilters = ['all'];
+        else {
+            window.activeFilters = window.activeFilters.filter(f => f !== 'all');
+            if (window.activeFilters.includes(id)) {
+                window.activeFilters = window.activeFilters.filter(f => f !== id);
+                if (window.activeFilters.length === 0) window.activeFilters = ['all'];
+            } else window.activeFilters.push(id);
+        }
+        window.updateUI();
+    };
+
+    window.changeMonth = (delta) => {
+        window.currentDate.setMonth(window.currentDate.getMonth() + delta);
+        window.updateUI();
+    };
+
+    window.resetAdvancedFilters = () => {
+        document.getElementById('advFilterPlatform').value = 'all';
+        document.getElementById('advFilterFormat').value = 'all';
+        document.getElementById('advFilterObjective').value = 'all';
+        window.updateUI();
+    };
+
+    window.resetDashPeriod = () => {
+        document.getElementById('dashStartDate').value = '';
+        document.getElementById('dashEndDate').value = '';
+        window.updateDashboard();
+    };
+
+    window.updateUI = () => {
+        renderFilterTags();
+        renderCampaignSelectors();
+        renderLegend();
+        renderAdvancedFilterOptions();
+        renderCalendar();
+        if (window.currentView === 'dashboard') window.updateDashboard();
+    };
+
+    // Renderizadores Locais
+    function renderFilterTags() {
+        const container = document.getElementById('filterTagsContainer');
+        if (!container) return;
+        let html = `<span onclick="toggleFilter('all')" class="filter-tag px-3 py-1.5 rounded-lg text-[9px] font-black uppercase whitespace-nowrap ${window.activeFilters.includes('all') ? 'active' : 'bg-white text-slate-500'}">Todas</span>`;
+        window.campaigns.forEach(c => {
+            const isActive = window.activeFilters.includes(c.id.toString());
+            html += `<span onclick="toggleFilter('${c.id}')" class="filter-tag px-3 py-1.5 rounded-lg text-[9px] font-black uppercase whitespace-nowrap ${isActive ? 'active' : 'bg-white text-slate-500'}">${c.name}</span>`;
+        });
+        container.innerHTML = html;
+    }
+
+    function renderCampaignSelectors() {
+        const actionCamp = document.getElementById('actionCampaignId');
+        const actionPlt = document.getElementById('actionChannel');
+        const actionFmt = document.getElementById('actionFormat');
+        const actionObj = document.getElementById('actionObjective');
+        const listActive = document.getElementById('campaignList');
+        const listCompleted = document.getElementById('campaignCompletedList');
+        
+        if (actionCamp) {
+            const campOptions = window.campaigns.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+            actionCamp.innerHTML = `<option value="">Ação Isolada</option>` + campOptions;
+            actionPlt.innerHTML = window.platforms.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+            actionFmt.innerHTML = window.formats.map(f => `<option value="${f.name}">${f.name}</option>`).join('');
+            actionObj.innerHTML = window.objectives.map(o => `<option value="${o.id}">${o.icon} ${o.name}</option>`).join('');
+        }
+
+        const activeCamps = []; const completedCamps = [];
+        window.campaigns.forEach(c => {
+            const tasks = window.marketingActions.filter(a => a.campaignId == c.id);
+            if (tasks.length > 0 && tasks.every(t => t.status === 'concluido')) completedCamps.push(c);
+            else activeCamps.push(c);
+        });
+
+        const campToHTML = (c, isDone) => `<div class="flex items-center justify-between p-3 rounded-2xl border border-slate-100 bg-slate-50/50 group text-left overflow-hidden"><div class="flex items-center gap-3 overflow-hidden"><div class="w-3 h-3 rounded-full shrink-0" style="background-color: ${c.color}"></div><div class="overflow-hidden"><p class="text-xs font-black text-slate-700 truncate uppercase font-bold ${isDone ? 'line-through opacity-50' : ''}">${c.name}</p><p class="text-[9px] font-bold text-slate-400 truncate">${c.obs || 'Sem briefing'}</p></div></div><div class="flex gap-1"><button onclick="editCampaign('${c.id}')" class="p-2 text-indigo-600"><i class="fas fa-pen text-[10px]"></i></button><button onclick="prepareDeleteCampaign('${c.id}')" class="p-2 text-red-500"><i class="fas fa-trash text-[10px]"></i></button></div></div>`;
+        if (listActive) listActive.innerHTML = activeCamps.map(c => campToHTML(c, false)).join('') || '<p class="text-[9px] text-slate-300 italic text-center">Nenhuma ativa.</p>';
+        if (listCompleted) listCompleted.innerHTML = completedCamps.map(c => campToHTML(c, true)).join('') || '<p class="text-[9px] text-slate-300 italic text-center">Nenhuma concluída.</p>';
+    }
+
+    function renderLegend() {
+        const legend = document.getElementById('dynamicLegend');
+        if (!legend) return;
+        const pltHtml = window.platforms.slice(0,4).map(p => `<div class="flex items-center gap-1.5"><i class="${p.icon}" style="color: ${p.color}"></i> ${p.name}</div>`).join('');
+        const objHtml = window.objectives.map(o => `<span>${o.icon} ${o.name}</span>`).join(' | ');
+        legend.innerHTML = pltHtml + `<div class="h-4 w-px bg-slate-200 mx-2 hidden md:block"></div><div>Objetivos: ${objHtml}</div>`;
+    }
+
+    function renderAdvancedFilterOptions() {
+        const pltFilter = document.getElementById('advFilterPlatform');
+        if (!pltFilter) return;
+        pltFilter.innerHTML = '<option value="all">Plataformas</option>' + window.platforms.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+        document.getElementById('advFilterFormat').innerHTML = '<option value="all">Formatos</option>' + window.formats.map(f => `<option value="${f.name}">${f.name}</option>`).join('');
+        document.getElementById('advFilterObjective').innerHTML = '<option value="all">Objetivos</option>' + window.objectives.map(o => `<option value="${o.id}">${o.icon} ${o.name}</option>`).join('');
+    }
+
+    function renderCalendar() {
+        const year = window.currentDate.getFullYear(); const month = window.currentDate.getMonth();
+        const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+        const monthYearEl = document.getElementById('currentMonthYear');
+        if (monthYearEl) monthYearEl.textContent = `${monthNames[month]} ${year}`;
+        
+        const calendarBody = document.getElementById('calendarBody');
+        if (!calendarBody) return;
+
+        const fPlt = document.getElementById('advFilterPlatform').value;
+        const fFmt = document.getElementById('advFilterFormat').value;
+        const fObj = document.getElementById('advFilterObjective').value;
+
+        const firstDay = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate();
+        calendarBody.innerHTML = '';
+        for (let i = 0; i < firstDay; i++) calendarBody.appendChild(Object.assign(document.createElement('div'), {className: 'calendar-day bg-slate-50/30'}));
+
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const dayEl = document.createElement('div'); dayEl.className = 'calendar-day group flex flex-col';
+            const isToday = new Date().toLocaleDateString('sv-SE') === dateStr;
+            dayEl.innerHTML = `<div class="flex justify-between items-center mb-1 text-left"><span class="text-[10px] font-black font-bold ${isToday ? 'bg-indigo-600 text-white px-1.5 py-0.5 rounded-lg' : 'text-slate-300'}">${day}</span><button onclick="openModal('${dateStr}')" class="opacity-0 group-hover:opacity-100 text-indigo-400 transition text-[10px] hover:scale-125"><i class="fas fa-plus"></i></button></div><div class="flex-1 overflow-y-auto space-y-[1px]" id="events-${dateStr}"></div>`;
+            const container = dayEl.querySelector(`#events-${dateStr}`);
+            
+            let dayEvents = window.marketingActions.filter(e => e.date === dateStr);
+            if (!window.activeFilters.includes('all')) dayEvents = dayEvents.filter(e => window.activeFilters.includes(e.campaignId?.toString()));
+            if (fPlt !== 'all') dayEvents = dayEvents.filter(e => e.channel === fPlt);
+            if (fFmt !== 'all') dayEvents = dayEvents.filter(e => e.format === fFmt);
+            if (fObj !== 'all') dayEvents = dayEvents.filter(e => e.objective === fObj);
+
+            dayEvents.forEach(event => {
+                const tag = document.createElement('div'); const isCompleted = event.status === 'concluido';
+                const camp = window.campaigns.find(c => c.id == event.campaignId);
+                const plt = window.platforms.find(p => p.id == event.channel) || { color: '#ccc', icon: 'fas fa-rocket' };
+                const obj = window.objectives.find(o => o.id == event.objective) || { icon: '🎯' };
+                tag.className = `event-tag ${isCompleted ? 'completed' : ''} ${camp ? 'campaign-indicator' : ''}`;
+                tag.style.backgroundColor = isCompleted ? '#f1f5f9' : plt.color + '15';
+                tag.style.color = isCompleted ? '#94a3b8' : plt.color;
+                tag.style.borderLeftColor = plt.color;
+                if (camp) tag.style.setProperty('--campaign-color', camp.color);
+                tag.innerHTML = `<div class="flex items-center overflow-hidden flex-1" onclick="openDetails(event, '${event.id}')"><div class="check-btn" onclick="toggleComplete(event, '${event.id}')">${isCompleted ? '<i class="fas fa-check text-[6px]"></i>' : ''}</div><i class="${plt.icon} mr-1 text-[8px]"></i><span class="truncate flex-1 font-bold">${event.title}</span><span style="font-size: 8px; margin-left: 2px;">${obj.icon}</span></div>`;
+                container.appendChild(tag);
+            });
+            calendarBody.appendChild(dayEl);
+        }
+
+        // Barra de progresso no Calendário
+        const statusRow = document.getElementById('campaignStatusRow');
+        if (window.activeFilters.length > 0 && !window.activeFilters.includes('all')) {
+            statusRow.classList.remove('hidden');
+            let cardsHtml = '';
+            window.activeFilters.forEach(fId => {
+                const camp = window.campaigns.find(c => c.id == fId);
+                if(camp) {
+                    const tasks = window.marketingActions.filter(a => a.campaignId == fId);
+                    const done = tasks.filter(a => a.status === 'concluido').length;
+                    const pct = tasks.length > 0 ? Math.round((done/tasks.length)*100) : 0;
+                    cardsHtml += `<div class="bg-white p-4 rounded-3xl border-2 shadow-sm border-l-[10px] text-left" style="border-left-color: ${camp.color}"><div class="flex justify-between items-start mb-2"><h3 class="text-[11px] font-black text-slate-800 uppercase tracking-tighter font-bold">${camp.name}</h3><span class="text-[11px] font-black ${pct === 100 ? 'text-green-600' : 'text-indigo-600'} font-bold">${pct}%</span></div><p class="text-[9px] text-slate-400 font-bold uppercase mb-2">Meta: ${camp.goal}</p><div class="progress-container"><div class="progress-bar" style="width: ${pct}%"></div></div></div>`;
+                }
+            });
+            statusRow.innerHTML = cardsHtml;
+        } else statusRow.classList.add('hidden');
+
+        const countEl = document.getElementById('totalActionsCount');
+        if (countEl) countEl.innerText = window.marketingActions.filter(a => { const d = new Date(a.date); return d.getFullYear() === year && d.getMonth() === month; }).length;
+    }
+
+    window.updateDashboard = () => {
+        const start = document.getElementById('dashStartDate').value;
+        const end = document.getElementById('dashEndDate').value;
+        let filtered = window.marketingActions;
+        if (start) filtered = filtered.filter(a => a.date >= start);
+        if (end) filtered = filtered.filter(a => a.date <= end);
+
+        const done = filtered.filter(a => a.status === 'concluido');
+        document.getElementById('statTotalCampaigns').innerText = [...new Set(filtered.map(a => a.campaignId).filter(id => id))].length;
+        document.getElementById('statCompletedTasks').innerText = done.length;
+        document.getElementById('statCompletionRate').innerText = `${filtered.length > 0 ? Math.round((done.length/filtered.length)*100) : 0}% taxa`;
+
+        let onTime = 0; let totalDelay = 0;
+        done.forEach(t => {
+            const p = new Date(t.date + "T00:00"); const a = new Date(t.completionDate);
+            if (a <= p) onTime++; else totalDelay += (a - p) / (1000*60*60*24);
+        });
+        document.getElementById('statOnTimeRate').innerText = `${done.length > 0 ? Math.round((onTime/done.length)*100) : 100}%`;
+        document.getElementById('statAverageDelay').innerText = `${done.length > 0 ? (totalDelay/done.length).toFixed(1) : 0} dias atraso médio`;
+
+        const next = filtered.filter(a => a.status === 'planejado' && new Date(a.date + "T23:59") >= new Date()).sort((a,b) => new Date(a.date) - new Date(b.date))[0];
+        document.getElementById('statNextTask').innerText = next ? next.title : '---';
+        document.getElementById('statNextDate').innerText = next ? new Date(next.date + "T00:00").toLocaleDateString('pt-BR') : '---';
+
+        renderCharts(filtered);
+    };
+
+    function renderCharts(filtered) {
+        const pltCanvas = document.getElementById('chartPlatforms');
+        const objCanvas = document.getElementById('chartObjectives');
+        if (!pltCanvas || !objCanvas) return;
+
+        const pltCtx = pltCanvas.getContext('2d');
+        const objCtx = objCanvas.getContext('2d');
+        if (window.chartPltInstance) window.chartPltInstance.destroy();
+        if (window.chartObjInstance) window.chartObjInstance.destroy();
+
+        window.chartPltInstance = new Chart(pltCtx, {
+            type: 'bar',
+            data: { labels: window.platforms.map(p => p.name), datasets: [{ label: 'Posts', data: window.platforms.map(p => filtered.filter(a => a.channel === p.id).length), backgroundColor: window.platforms.map(p => p.color + '80'), borderColor: window.platforms.map(p => p.color), borderWidth: 2, borderRadius: 8 }] },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
+        window.chartObjInstance = new Chart(objCtx, {
+            type: 'doughnut',
+            data: { labels: window.objectives.map(o => o.name), datasets: [{ data: window.objectives.map(o => filtered.filter(a => a.objective === o.id).length), backgroundColor: ['#f472b6', '#34d399', '#60a5fa', '#fbbf24', '#a78bfa'] }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+    }
+
+    // Modal Helpers
+    window.openConfigModal = () => { document.getElementById('configModal').classList.add('active'); renderIconPicker(); renderConfigLists(); };
+    window.closeConfigModal = () => document.getElementById('configModal').classList.remove('active');
+    window.switchConfigTab = (tab) => {
+        document.getElementById('config-platforms').classList.toggle('hidden', tab !== 'platforms');
+        document.getElementById('config-formats').classList.toggle('hidden', tab !== 'formats');
+        document.getElementById('config-objectives').classList.toggle('hidden', tab !== 'objectives');
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(`tab-${tab}`).classList.add('active');
+    };
+    window.openCampaignModal = () => { document.getElementById('campaignModal').classList.add('active'); renderCampaignSelectors(); };
+    window.closeCampaignModal = () => document.getElementById('campaignModal').classList.remove('active');
+    window.openModal = (date = '') => { document.getElementById('editingId').value = ''; document.getElementById('eventForm').reset(); document.getElementById('actionDate').value = date || new Date().toLocaleDateString('sv-SE'); document.getElementById('eventModal').classList.add('active'); };
+    window.closeModal = () => document.getElementById('eventModal').classList.remove('active');
+
+    // CRUD Cloud
+    document.getElementById('eventForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const data = {
+            title: document.getElementById('actionTitle').value,
+            date: document.getElementById('actionDate').value,
+            channel: document.getElementById('actionChannel').value,
+            format: document.getElementById('actionFormat').value,
+            description: document.getElementById('actionDescription').value,
+            campaignId: document.getElementById('actionCampaignId').value,
+            participants: document.getElementById('actionParticipants').value,
+            objective: document.getElementById('actionObjective').value
+        };
+        const id = document.getElementById('editingId').value;
+        if (id) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'marketingActions', id), data);
+        else await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'marketingActions'), { ...data, status: 'planejado', completionDate: null });
+        window.closeModal();
+    };
+
+    document.getElementById('campaignForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const data = { name: document.getElementById('campName').value, goal: document.getElementById('campGoal').value, color: document.getElementById('campColor').value, obs: document.getElementById('campObs').value };
+        const id = document.getElementById('editingCampaignId').value;
+        if (id) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'campaigns', id), data);
+        else await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'campaigns'), data);
+        window.resetCampaignForm();
+    };
+
+    document.getElementById('platformForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const data = { name: document.getElementById('pltName').value, color: document.getElementById('pltColor').value, icon: window.selectedPlatformIcon };
+        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'platforms'), data);
+        document.getElementById('platformForm').reset();
+    };
+
+    document.getElementById('formatForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('fmtName').value.toUpperCase();
+        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'formats'), { name });
+        document.getElementById('formatForm').reset();
+    };
+
+    document.getElementById('objectiveForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const data = { icon: document.getElementById('objIcon').value, name: document.getElementById('objName').value };
+        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'objectives'), data);
+        document.getElementById('objectiveForm').reset();
+    };
+
+    window.resetCampaignForm = () => { document.getElementById('campaignForm').reset(); document.getElementById('editingCampaignId').value = ''; document.getElementById('campaignModalTitle').innerText = 'Gerir Estratégias'; document.getElementById('submitCampBtn').innerText = 'Salvar'; document.getElementById('cancelEditCampBtn').classList.add('hidden'); };
+    window.editCampaign = (id) => { const c = window.campaigns.find(c => c.id == id); document.getElementById('editingCampaignId').value = id; document.getElementById('campName').value = c.name; document.getElementById('campGoal').value = c.goal; document.getElementById('campColor').value = c.color; document.getElementById('campObs').value = c.obs || ''; document.getElementById('campaignModalTitle').innerText = 'Editar Estratégia'; document.getElementById('submitCampBtn').innerText = 'Atualizar'; document.getElementById('cancelEditCampBtn').classList.remove('hidden'); };
+    
+    window.toggleComplete = async (event, id) => {
+        if (event) event.stopPropagation();
+        const a = window.marketingActions.find(a => a.id === id);
+        const isClosing = a.status !== 'concluido';
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'marketingActions', id), {
+            status: isClosing ? 'concluido' : 'planejado',
+            completionDate: isClosing ? new Date().toISOString() : null
+        });
+    };
+
+    window.openDetails = (event, id) => {
+        event.stopPropagation();
+        const a = window.marketingActions.find(a => a.id === id);
+        if (!a) return;
+        const c = window.campaigns.find(c => c.id == a.campaignId);
+        const plt = window.platforms.find(p => p.id == a.channel) || { color: '#ccc', icon: 'fas fa-rocket' };
+        const obj = window.objectives.find(o => o.id == a.objective) || { name: 'Geral', icon: '🎯' };
+        
+        document.getElementById('detailsTitle').innerText = a.title;
+        document.getElementById('detailsDescription').innerText = a.description || 'Sem notas.';
+        document.getElementById('detailsFormatBadge').innerText = a.format;
+        document.getElementById('detailsDate').innerText = new Date(a.date + "T00:00").toLocaleDateString('pt-BR');
+        document.getElementById('detailsObjectiveBadge').innerText = `${obj.icon} ${obj.name}`;
+        
+        const pCont = document.getElementById('detailsParticipantsContainer');
+        if (a.participants) { document.getElementById('detailsParticipants').innerText = a.participants; pCont.classList.remove('hidden'); } else pCont.classList.add('hidden');
+        
+        const cBadge = document.getElementById('detailsCampaignBadge');
+        if (c) { cBadge.innerText = c.name; cBadge.style.backgroundColor = c.color; cBadge.classList.remove('hidden'); } else cBadge.classList.add('hidden');
+        
+        const iconC = document.getElementById('detailsIcon'); iconC.style.backgroundColor = plt.color; iconC.innerHTML = `<i class="${plt.icon} fa-2x"></i>`;
+        
+        document.getElementById('detailsEditBtn').onclick = () => { window.closeDetails(); window.openEditAction(a); };
+        document.getElementById('detailsCompleteBtn').innerText = a.status === 'concluido' ? 'Reabrir' : 'Concluir';
+        document.getElementById('detailsCompleteBtn').onclick = () => { window.toggleComplete(null, a.id); window.closeDetails(); };
+        
+        document.getElementById('detailsModal').classList.add('active');
+    };
+
+    window.openEditAction = (a) => {
+        document.getElementById('editingId').value = a.id;
+        document.getElementById('actionTitle').value = a.title;
+        document.getElementById('actionDate').value = a.date;
+        document.getElementById('actionChannel').value = a.channel;
+        document.getElementById('actionFormat').value = a.format;
+        document.getElementById('actionDescription').value = a.description || '';
+        document.getElementById('actionCampaignId').value = a.campaignId || '';
+        document.getElementById('actionParticipants').value = a.participants || '';
+        document.getElementById('actionObjective').value = a.objective || '';
+        document.getElementById('eventModal').classList.add('active');
+    };
+
+    window.closeDetails = () => document.getElementById('detailsModal').classList.remove('active');
+    window.prepareDeletePlatform = (id) => { window.idToDelete = id; window.deleteType = 'plt'; document.getElementById('deleteConfirmModal').classList.add('active'); };
+    window.prepareDeleteCampaign = (id) => { window.idToDelete = id; window.deleteType = 'camp'; document.getElementById('deleteConfirmModal').classList.add('active'); };
+    window.closeDeleteConfirm = () => document.getElementById('deleteConfirmModal').classList.remove('active');
+    
+    window.confirmDeleteCampaign = async () => {
+        const path = window.deleteType === 'camp' ? 'campaigns' : (window.deleteType === 'plt' ? 'platforms' : 'marketingActions');
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', path, window.idToDelete));
+        if (window.deleteType === 'camp') {
+            window.marketingActions.filter(a => a.campaignId === window.idToDelete).forEach(a => {
+                updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'marketingActions', a.id), { campaignId: "" });
+            });
+        }
+        window.closeDeleteConfirm();
+    };
+
+    window.selectIcon = (icon) => { window.selectedPlatformIcon = icon; renderIconPicker(); };
+    
+    function renderIconPicker() {
+        const grid = document.getElementById('iconPickerGrid');
+        if (!grid) return;
+        grid.innerHTML = iconLibrary.map(icon => `<div class="icon-option ${window.selectedPlatformIcon === icon ? 'selected' : ''}" onclick="selectIcon('${icon}')"><i class="${icon} fa-lg"></i></div>`).join('');
+    }
+
+    function renderConfigLists() {
+        document.getElementById('platformList').innerHTML = window.platforms.map(p => `<div class="flex items-center justify-between p-3 bg-white rounded-2xl border border-slate-100 shadow-sm"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-lg flex items-center justify-center text-white" style="background-color: ${p.color}"><i class="${p.icon}"></i></div><span class="text-xs font-black uppercase text-slate-700 font-bold">${p.name}</span></div><button onclick="prepareDeletePlatform('${p.id}')" class="text-slate-300 hover:text-red-500 p-2 transition"><i class="fas fa-trash text-[10px]"></i></button></div>`).join('');
+        document.getElementById('formatList').innerHTML = window.formats.map(f => `<div class="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200"><span class="text-[10px] font-black text-slate-600 uppercase font-bold">${f.name}</span><button onclick="deleteFormat('${f.name}')" class="text-slate-400 hover:text-red-500 ml-1"><i class="fas fa-times text-[9px]"></i></button></div>`).join('');
+        document.getElementById('objectiveList').innerHTML = window.objectives.map(o => `<div class="flex items-center justify-between p-3 bg-white rounded-2xl border border-slate-100 shadow-sm"><div class="flex items-center gap-3"><span>${o.icon}</span><span class="text-xs font-black uppercase text-slate-700 font-bold">${o.name}</span></div><button onclick="deleteObjective('${o.id}')" class="text-slate-300 hover:text-red-500 p-2 transition"><i class="fas fa-trash text-[10px]"></i></button></div>`).join('');
+    }
+
+    window.deleteFormat = async (name) => {
+        const docToDelete = window.formats.find(f => f.name === name);
+        if (docToDelete) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'formats', docToDelete.id));
+    };
+    window.deleteObjective = async (id) => {
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'objectives', id));
+    };
+
+    // Boot
+    await initAuth();
+    onAuthStateChanged(auth, user => { if (user) { window.currentUser = user; document.getElementById('currentUserDisplay').innerText = `ID: ${user.uid.substring(0,8)}`; startSync(); } });
+
+</script>
+
+</body>
+</html>
